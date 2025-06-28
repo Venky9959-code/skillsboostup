@@ -3,6 +3,8 @@ import os
 
 app = Flask(__name__)
 
+app.config['SQLALCHEMY_DATABASE_URI'] ='postgresql://skillsdb_user:FQzUpOS4Znc8iscCAhFS3bpXa7YRxVZd@dpg-d1fsp1ripnbc73a0hvlg-a/skillsdb'
+
 @app.route('/')
 def home():
     return render_template('index.html')  # Make sure you have templates/index.html
