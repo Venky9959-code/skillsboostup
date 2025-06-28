@@ -4,3 +4,6 @@ pymysql
 werkzeug
 psycopg2-binary
 SQLAlchemy
+Flask
+Flask_SQLAlchemy
+pymysql
