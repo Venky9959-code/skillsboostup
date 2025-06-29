@@ -6,3 +6,5 @@ pymysql
 Flask
 Flask_SQLAlchemy
 psycopg2-binary
+python-dotenv
+
