@@ -8,3 +8,7 @@ Flask_SQLAlchemy
 psycopg2-binary
 python-dotenv
 
+pip freeze > requirements.txt
+git add requirements.txt
+git commit -m "Add Flask-Mail for email confirmation"
+git push

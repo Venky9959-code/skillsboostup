@@ -1,0 +1,16 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="container mt-5">
+  <h3>Welcome {{ user.email }}</h3>
+  <hr>
+  <h5>Your Courses</h5>
+  {% for course in courses %}
+    <div class="mb-2">
+      <strong>{{ course.title }}</strong><br>
+      <a href="/course/{{ course.id }}/access">Access Course</a>
+    </div>
+  {% else %}
+    <p>No purchases yet.</p>
+  {% endfor %}
+</div>
+{% endblock %}

@@ -1,15 +1,12 @@
-<!DOCTYPE html>
-<html>
-<head>
-  <title>Login</title>
-</head>
-<body>
+<!-- login.html -->
+{% extends "layout.html" %}
+{% block content %}
+<div class="container mt-5 col-md-4">
   <h2>Login</h2>
   <form method="POST">
-    <input name="email" placeholder="Email"><br><br>
-    <input type="password" name="password" placeholder="Password"><br><br>
-    <button type="submit">Login</button>
+    <input name="email" type="email" class="form-control" placeholder="Email" required><br>
+    <input name="password" type="password" class="form-control" placeholder="Password" required><br>
+    <input type="submit" class="btn btn-primary" value="Login">
   </form>
-  <p>Don't have an account? <a href="/register">Register</a></p>
-</body>
-</html>
+</div>
+{% endblock %}

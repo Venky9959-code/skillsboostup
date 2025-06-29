@@ -1,0 +1,26 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="container mt-4">
+  <form method="GET">
+    <input name="search" value="{{ search }}" class="form-control" placeholder="Search courses...">
+  </form>
+  <hr>
+  {% for course in courses %}
+    <div class="card mb-3">
+      <div class="card-body">
+        <h4>{{ course.title }}</h4>
+        <p>{{ course.description }}</p>
+        <a href="/buy/{{ course.id }}" class="btn btn-sm btn-success">Pay ₹{{ course.price }}</a>
+      </div>
+    </div>
+  {% endfor %}
+  <div class="d-flex justify-content-center">
+    {% if pagination.has_prev %}
+      <a href="?page={{ pagination.prev_num }}&search={{ search }}" class="btn btn-outline-primary">Previous</a>
+    {% endif %}
+    {% if pagination.has_next %}
+      <a href="?page={{ pagination.next_num }}&search={{ search }}" class="btn btn-outline-primary ml-2">Next</a>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
