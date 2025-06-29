@@ -5,8 +5,9 @@ db = SQLAlchemy()
 
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    email = db.Column(db.String(120), unique=True, nullable=False)
-    password = db.Column(db.String(200), nullable=False)
+    email = db.Column(db.String(150), unique=True)
+    password = db.Column(db.String(256))
+
 
 class Course(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -14,7 +15,7 @@ class Course(db.Model):
     description = db.Column(db.Text, nullable=False)
     price = db.Column(db.Integer, nullable=False)
     pdf_filename = db.Column(db.String(200), nullable=False)
-    thumbnail = db.Column(db.String(200), nullable=True)  # For image preview
+    thumbnail = db.Column(db.String(200))  # For image preview
 
 class Purchase(db.Model):
     id = db.Column(db.Integer, primary_key=True)
