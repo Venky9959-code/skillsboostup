@@ -1,3 +1,5 @@
+from sqlalchemy import text  # Add this import at the top
+db.session.execute(text('SELECT 1'))
 
 from flask import Flask, render_template
 from flask_sqlalchemy import SQLAlchemy
