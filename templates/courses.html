@@ -10,7 +10,11 @@
       <div class="card-body">
         <h4>{{ course.title }}</h4>
         <p>{{ course.description }}</p>
-        <a href="/buy/{{ course.id }}" class="btn btn-sm btn-success">Pay ₹{{ course.price }}</a>
+        {% if has_access %}
+          <a href="/download/{{ course.id }}" class="btn btn-primary">📥 Download PDF</a>
+        {% else %}
+          <button onclick="payNow({{ course.price }})" class="btn btn-success">💳 Pay ₹{{ course.price }}</button>
+        {% endif %}
       </div>
     </div>
   {% endfor %}
@@ -23,4 +27,34 @@
     {% endif %}
   </div>
 </div>
+
+<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+<script>
+function payNow(amount) {
+  fetch("/create_order", {
+    method: "POST",
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ amount: amount }),
+  })
+  .then(res => res.json())
+  .then(order => {
+    const options = {
+      key: "{{ razorpay_key_id }}",
+      amount: order.amount,
+      currency: "INR",
+      name: "Skills BoostUp",
+      description: "Course Access",
+      order_id: order.id,
+      handler: function (response) {
+        fetch("/payment_success", { method: "POST" })
+        .then(() => window.location.href = "/courses");
+      },
+      theme: { color: "#3399cc" }
+    };
+    const rzp = new Razorpay(options);
+    rzp.open();
+  })
+  .catch(err => console.error(err));
+}
+</script>
 {% endblock %}

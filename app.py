@@ -1,4 +1,4 @@
-from flask import Flask, request, redirect, flash, render_template, session, url_for
+from flask import Flask, jsonify, request, redirect, flash, render_template, session, url_for
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
@@ -183,6 +183,80 @@ def admin_panel():
 @app.route('/chatbot', methods=['GET'])
 def chatbot():
     return render_template('chatbot.html')
+
+
+# Razorpay client
+razorpay_client = razorpay.Client(auth=(os.environ['RAZORPAY_KEY_ID'], os.environ['RAZORPAY_KEY_SECRET']))
+
+@app.route("/create_order", methods=["POST"])
+def create_order():
+    try:
+        data = request.get_json()
+        amount = int(data['amount']) * 100  # Convert ₹ to paise
+
+        payment = razorpay_client.order.create({
+            "amount": amount,
+            "currency": "INR",
+            "payment_capture": "1"
+        })
+
+        return jsonify(payment), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    
+@app.route("/payment_success", methods=["POST"])
+def payment_success():
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+
+    user = User.query.get(session['user_id'])
+    if user:
+        user.is_paid = True
+        db.session.commit()
+
+        # Find the last purchased course (or however you track it)
+        course = Course.query.first()  # Replace with logic to find correct course
+
+        # Send email with PDF
+        msg = Message("Your Course: " + course.title,
+                      sender=app.config['MAIL_USERNAME'],
+                      recipients=[user.email])
+        msg.body = f"Thank you for your payment. Attached is your course: {course.title}"
+
+        with app.open_resource("uploads/" + course.pdf_filename) as pdf:
+            msg.attach(course.pdf_filename, "application/pdf", pdf.read())
+
+        mail.send(msg)
+        return '', 200
+
+    return '', 400
+
+
+@app.route("/courses")
+def show_courses():
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+
+    user = User.query.get(session['user_id'])
+
+    # check if user has paid
+    has_access = user.is_paid if user else False
+
+    page = request.args.get('page', 1, type=int)
+    per_page = 5
+    query = Course.query.filter(Course.title.ilike(f"%{request.args.get('title', '')}%"))
+    pagination = query.paginate(page=page, per_page=per_page)
+
+    return render_template("courses.html", pagination=pagination, has_access=has_access)
+
+@app.route('/download/<int:course_id>')
+def download_pdf(course_id):
+    if not session.get("paid"):
+        return redirect('/courses')
+    course = Course.query.get_or_404(course_id)
+    return send_from_directory(os.path.join(app.root_path, 'uploads'), course.pdf_filename, as_attachment=True)
+
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))

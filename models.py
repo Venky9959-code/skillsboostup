@@ -7,6 +7,8 @@ class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(200), unique=True, nullable=False)
     password = db.Column(db.String(256), nullable=False)
+    is_paid = db.Column(db.Boolean, default=False)
+
 
 
 class Course(db.Model):
@@ -15,7 +17,8 @@ class Course(db.Model):
     description = db.Column(db.Text, nullable=False)
     price = db.Column(db.Integer, nullable=False)
     pdf_filename = db.Column(db.String(200), nullable=False)
-    thumbnail = db.Column(db.String(200))  # For image preview
+    thumbnail = db.Column(db.String(255), nullable=True)
+  # For image preview
 
 class Purchase(db.Model):
     id = db.Column(db.Integer, primary_key=True)
