@@ -1,33 +1,25 @@
-from sqlalchemy import text  # Add this import at the top
-
-from flask import Flask, render_template
+from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
+from dotenv import load_dotenv
 import os
+from models import db  # Import your db instance
+
+load_dotenv()
 
 app = Flask(__name__)
-
-# Replace this with your Render PostgreSQL credentials
-app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://skillsdb_user:FQzUpOS4Znc8iscCAhFS3bpXa7YRxVZd@dpg-d1fsp1ripnbc73a0hvlg-a/skillsdb'
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv("DATABASE_URL")
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-db = SQLAlchemy(app)
+db.init_app(app)
 
-@app.route('/test-db')
-def test_db():
-    try:
-        db.session.execute('SELECT 1')
-        return "✅ Database connected successfully!"
-    except Exception as e:
-        return f"❌ Database error: {e}"
+@app.before_first_request
+def create_tables():
+    db.create_all()
 
+@app.route('/courses')
+def show_courses():
+    courses = Course.query.all()
+    return {
+        "courses": [c.title for c in courses]
+    }
 
-@app.route('/')
-def home():
-    return render_template('index.html')  # Make sure you have templates/index.html
-
-
-
-
-if __name__ == '__main__':
-    port = int(os.environ.get("PORT", 5000))  # Use Render-assigned port
-    app.run(host='0.0.0.0', port=port)
