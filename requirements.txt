@@ -1,9 +1,8 @@
-flask
-flask_sqlalchemy
+
 pymysql
 werkzeug
-psycopg2-binary
 SQLAlchemy
+pymysql
 Flask
 Flask_SQLAlchemy
-pymysql
+psycopg2-binary
