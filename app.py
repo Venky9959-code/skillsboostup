@@ -233,23 +233,6 @@ def payment_success():
     return '', 400
 
 
-@app.route("/courses")
-def show_courses():
-    if 'user_id' not in session:
-        return redirect(url_for('login'))
-
-    user = User.query.get(session['user_id'])
-
-    # check if user has paid
-    has_access = user.is_paid if user else False
-
-    page = request.args.get('page', 1, type=int)
-    per_page = 5
-    query = Course.query.filter(Course.title.ilike(f"%{request.args.get('title', '')}%"))
-    pagination = query.paginate(page=page, per_page=per_page)
-
-    return render_template("courses.html", pagination=pagination, has_access=has_access)
-
 @app.route('/download/<int:course_id>')
 def download_pdf(course_id):
     if not session.get("paid"):
