@@ -14,5 +14,5 @@ class Course(db.Model):
     title = db.Column(db.String(100), nullable=False)
     description = db.Column(db.Text, nullable=False)
     pdf_filename = db.Column(db.String(255), nullable=False)
-    price = db.Column(db.Integer, default=200)  # ₹200 fixed price
+    price = db.Column(db.Integer, default=200)
     uploaded_at = db.Column(db.DateTime, default=datetime.utcnow)
