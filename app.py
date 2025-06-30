@@ -240,6 +240,22 @@ def download_pdf(course_id):
     course = Course.query.get_or_404(course_id)
     return send_from_directory(os.path.join(app.root_path, 'uploads'), course.pdf_filename, as_attachment=True)
 
+with app.app_context():
+    try:
+        db.session.execute('ALTER TABLE "user" ADD COLUMN is_paid BOOLEAN DEFAULT FALSE;')
+        print("✅ is_paid column added")
+    except Exception as e:
+        print("⚠️ is_paid column may already exist:", e)
+
+    try:
+        db.session.execute('ALTER TABLE course ADD COLUMN thumbnail TEXT;')
+        print("✅ thumbnail column added")
+    except Exception as e:
+        print("⚠️ thumbnail column may already exist:", e)
+
+    db.session.commit()
+
+
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
