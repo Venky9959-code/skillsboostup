@@ -4,11 +4,11 @@ from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
 import os
 import razorpay
-from models import db, Course, User, Purchase, EmailLog
 from datetime import timedelta
 from flask_mail import Mail, Message
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_babel import Babel, gettext
+from flask_migrate import Migrate
 
 # Load environment variables
 load_dotenv()
@@ -40,14 +40,13 @@ app.config['MAIL_USERNAME'] = os.getenv('MAIL_USERNAME')
 app.config['MAIL_PASSWORD'] = os.getenv('MAIL_PASSWORD')
 mail = Mail(app)
 
+# Database instance
+db = SQLAlchemy(app)
+migrate = Migrate(app, db)
+
 # Babel for i18n
 babel = Babel(app)
 app.config['BABEL_DEFAULT_LOCALE'] = 'en'
-
-# Init DB
-db.init_app(app)
-with app.app_context():
-    db.create_all()
 
 # Utility function
 def allowed_file(filename):
@@ -62,12 +61,17 @@ def register():
     if request.method == 'POST':
         email = request.form['email']
         password = generate_password_hash(request.form['password'])
-        if User.query.filter_by(email=email).first():
+        db_conn = db.engine.raw_connection()
+        cursor = db_conn.cursor()
+        cursor.execute("SELECT * FROM user WHERE email=%s", (email,))
+        existing = cursor.fetchone()
+        if existing:
             flash(gettext("Email already exists"))
             return redirect('/register')
-        new_user = User(email=email, password=password)
-        db.session.add(new_user)
-        db.session.commit()
+        cursor.execute("INSERT INTO user (email, password) VALUES (%s, %s)", (email, password))
+        db_conn.commit()
+        cursor.close()
+        db_conn.close()
         flash(gettext("Registered successfully. Please login."))
         return redirect('/login')
     return render_template('register.html')
@@ -77,9 +81,14 @@ def login():
     if request.method == 'POST':
         email = request.form['email']
         password = request.form['password']
-        user = User.query.filter_by(email=email).first()
-        if user and check_password_hash(user.password, password):
-            session['user_id'] = user.id
+        db_conn = db.engine.raw_connection()
+        cursor = db_conn.cursor()
+        cursor.execute("SELECT id, password FROM user WHERE email=%s", (email,))
+        user = cursor.fetchone()
+        cursor.close()
+        db_conn.close()
+        if user and check_password_hash(user[1], password):
+            session['user_id'] = user[0]
             flash(gettext("Logged in"))
             return redirect('/dashboard')
         else:
@@ -93,164 +102,154 @@ def logout():
     flash(gettext("Logged out"))
     return redirect('/')
 
-@app.route('/courses')
-def show_courses():
-    search = request.args.get('search', '')
-    page = request.args.get('page', 1, type=int)
-    per_page = 5
-    query = Course.query.filter(Course.title.ilike(f"%{search}%"))
-    pagination = query.paginate(page=page, per_page=per_page)
-    return render_template('courses.html', courses=pagination.items, pagination=pagination, search=search)
+@app.route('/dashboard')
+def dashboard():
+    if 'user_id' not in session:
+        flash(gettext("Login required"))
+        return redirect("/login")
+
+    db_conn = db.engine.raw_connection()
+    cursor = db_conn.cursor()
+    cursor.execute("SELECT email FROM user WHERE id=%s", (session['user_id'],))
+    user_email = cursor.fetchone()[0]
+    cursor.execute("SELECT course_id FROM purchase WHERE user_id=%s", (session['user_id'],))
+    course_ids = cursor.fetchall()
+    course_list = []
+    for c_id in course_ids:
+        cursor.execute("SELECT * FROM course WHERE id=%s", (c_id[0],))
+        course = cursor.fetchone()
+        if course:
+            course_list.append(course)
+    cursor.close()
+    db_conn.close()
+
+    return render_template('dashboard.html', user_email=user_email, courses=course_list)
 
 @app.route('/buy/<int:course_id>')
 def buy_course(course_id):
     if 'user_id' not in session:
-        flash(gettext("Login required"))
+        flash("Login required")
         return redirect('/login')
-    course = Course.query.get_or_404(course_id)
+
+    db_conn = db.engine.raw_connection()
+    cursor = db_conn.cursor()
+    cursor.execute("SELECT price FROM course WHERE id=%s", (course_id,))
+    course = cursor.fetchone()
+    cursor.close()
+    db_conn.close()
+    if not course:
+        flash("Course not found")
+        return redirect('/dashboard')
+
     payment = razorpay_client.order.create({
-        "amount": course.price * 100,
+        "amount": course[0] * 100,
         "currency": "INR",
         "payment_capture": 1
     })
-    return render_template('buy.html', course=course, amount=payment['amount'], key_id=RAZORPAY_KEY_ID, order_id=payment['id'])
+    return render_template('buy.html', course_id=course_id, amount=payment['amount'], key_id=RAZORPAY_KEY_ID, order_id=payment['id'])
 
 @app.route('/verify_payment', methods=['POST'])
 def verify_payment():
-    course_id = int(request.form.get("course_id"))
-    user_id = session.get("user_id")
-    if not user_id:
-        flash(gettext("Login required"))
-        return redirect("/login")
+    user_id = session.get('user_id')
+    course_id = request.form.get('course_id')
+    if not user_id or not course_id:
+        flash("Invalid session or course")
+        return redirect('/')
 
-    if not Purchase.query.filter_by(user_id=user_id, course_id=course_id).first():
-        db.session.add(Purchase(user_id=user_id, course_id=course_id))
-        db.session.commit()
+    db_conn = db.engine.raw_connection()
+    cursor = db_conn.cursor()
+    cursor.execute("SELECT * FROM purchase WHERE user_id=%s AND course_id=%s", (user_id, course_id))
+    exists = cursor.fetchone()
+    if not exists:
+        cursor.execute("INSERT INTO purchase (user_id, course_id) VALUES (%s, %s)", (user_id, course_id))
+        db_conn.commit()
 
-    course = Course.query.get_or_404(course_id)
-    user = User.query.get(user_id)
+    cursor.execute("SELECT email FROM user WHERE id=%s", (user_id,))
+    email = cursor.fetchone()[0]
+    cursor.execute("SELECT title, pdf_filename FROM course WHERE id=%s", (course_id,))
+    course = cursor.fetchone()
 
     try:
         msg = Message(
             subject="📘 Your Course Access – Skills Boost",
             sender=app.config['MAIL_USERNAME'],
-            recipients=[user.email]
+            recipients=[email]
         )
-        msg.body = f"Thank you for purchasing '{course.title}'!\nDownload: https://{request.host}/static/uploads/{course.pdf_filename}"
+        msg.body = f"Thank you for purchasing '{course[0]}'!\nDownload: https://{request.host}/static/uploads/{course[1]}"
         mail.send(msg)
 
-        db.session.add(EmailLog(user_email=user.email, course_id=course.id))
-        db.session.commit()
-
-        flash(gettext("Payment successful! Confirmation email sent."))
+        cursor.execute("INSERT INTO email_log (user_email, course_id) VALUES (%s, %s)", (email, course_id))
+        db_conn.commit()
+        flash("Payment successful and email sent!")
     except Exception as e:
-        flash(gettext(f"Email sending failed. {str(e)}"))
+        flash(f"Payment successful but email failed: {str(e)}")
 
-    return redirect(f'/course/{course_id}/access')
+    cursor.close()
+    db_conn.close()
+    return redirect(f"/course/{course_id}/access")
 
 @app.route('/course/<int:course_id>/access')
 def access_course(course_id):
     user_id = session.get("user_id")
     if not user_id:
-        flash(gettext("Login required"))
+        flash("Login required")
         return redirect("/login")
 
-    if not Purchase.query.filter_by(user_id=user_id, course_id=course_id).first():
-        flash(gettext("You must complete payment first."))
-        return redirect(f'/buy/{course_id}')
+    db_conn = db.engine.raw_connection()
+    cursor = db_conn.cursor()
+    cursor.execute("SELECT * FROM purchase WHERE user_id=%s AND course_id=%s", (user_id, course_id))
+    access = cursor.fetchone()
+    if not access:
+        flash("Please purchase this course first")
+        return redirect(f"/buy/{course_id}")
 
-    course = Course.query.get_or_404(course_id)
-    return render_template('access.html', course=course)
+    cursor.execute("SELECT * FROM course WHERE id=%s", (course_id,))
+    course = cursor.fetchone()
+    cursor.close()
+    db_conn.close()
 
-@app.route('/dashboard')
-def dashboard():
-    user_id = session.get("user_id")
-    if not user_id:
-        flash(gettext("Login required"))
-        return redirect("/login")
-
-    user = User.query.get(user_id)
-    purchases = Purchase.query.filter_by(user_id=user_id).all()
-    course_list = [Course.query.get(p.course_id) for p in purchases]
-    return render_template('dashboard.html', user=user, courses=course_list)
-
-@app.route('/admin')
-def admin_panel():
-    users = User.query.all()
-    purchases = Purchase.query.all()
-    return render_template('admin.html', users=users, purchases=purchases)
+    return render_template("access.html", course=course)
 
 @app.route('/chatbot', methods=['GET'])
 def chatbot():
     return render_template('chatbot.html')
 
+@app.route('/upload_course', methods=['GET', 'POST'])
+def upload_course():
+    if request.method == 'POST':
+        title = request.form['title']
+        description = request.form['description']
+        price = int(request.form['price'])
+        pdf_file = request.files['pdf']
+        thumbnail_file = request.files['thumbnail']
 
-# Razorpay client
-razorpay_client = razorpay.Client(auth=(os.environ['RAZORPAY_KEY_ID'], os.environ['RAZORPAY_KEY_SECRET']))
+        if pdf_file and allowed_file(pdf_file.filename):
+            pdf_filename = secure_filename(pdf_file.filename)
+            pdf_path = os.path.join(app.config['UPLOAD_FOLDER'], pdf_filename)
+            pdf_file.save(pdf_path)
+        else:
+            flash("Invalid PDF file")
+            return redirect('/upload_course')
 
-@app.route("/create_order", methods=["POST"])
-def create_order():
-    try:
-        data = request.get_json()
-        amount = int(data['amount']) * 100  # Convert ₹ to paise
+        thumbnail_filename = None
+        if thumbnail_file and allowed_file(thumbnail_file.filename):
+            thumbnail_filename = secure_filename(thumbnail_file.filename)
+            thumbnail_path = os.path.join(app.config['UPLOAD_FOLDER'], thumbnail_filename)
+            thumbnail_file.save(thumbnail_path)
 
-        payment = razorpay_client.order.create({
-            "amount": amount,
-            "currency": "INR",
-            "payment_capture": "1"
-        })
+        db_conn = db.engine.raw_connection()
+        cursor = db_conn.cursor()
+        cursor.execute("INSERT INTO course (title, description, price, pdf_filename, thumbnail) VALUES (%s, %s, %s, %s, %s)",
+                       (title, description, price, pdf_filename, thumbnail_filename))
+        db_conn.commit()
+        cursor.close()
+        db_conn.close()
 
-        return jsonify(payment), 200
+        flash("Course uploaded successfully")
+        return redirect('/upload_course')
 
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-    
-@app.route("/payment_success", methods=["POST"])
-def payment_success():
-    if 'user_id' not in session:
-        return redirect(url_for('login'))
-
-    user = User.query.get(session['user_id'])
-    if user:
-        user.is_paid = True
-        db.session.commit()
-
-        # Find the last purchased course (or however you track it)
-        course = Course.query.first()  # Replace with logic to find correct course
-
-        # Send email with PDF
-        msg = Message("Your Course: " + course.title,
-                      sender=app.config['MAIL_USERNAME'],
-                      recipients=[user.email])
-        msg.body = f"Thank you for your payment. Attached is your course: {course.title}"
-
-        with app.open_resource("uploads/" + course.pdf_filename) as pdf:
-            msg.attach(course.pdf_filename, "application/pdf", pdf.read())
-
-        mail.send(msg)
-        return '', 200
-
-    return '', 400
-
-
+    return render_template('upload_course.html')
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
-
-# ADD THIS ONLY TEMPORARILY — DELETE AFTER SUCCESSFUL MIGRATION
-with app.app_context():
-    try:
-        db.session.execute('ALTER TABLE "user" ADD COLUMN is_paid BOOLEAN DEFAULT FALSE;')
-        print("✅ Column 'is_paid' added to user table")
-    except Exception as e:
-        print("⚠️ 'is_paid' column might already exist or failed:", e)
-
-    try:
-        db.session.execute('ALTER TABLE course ADD COLUMN thumbnail TEXT;')
-        print("✅ Column 'thumbnail' added to course table")
-    except Exception as e:
-        print("⚠️ 'thumbnail' column might already exist or failed:", e)
-
-    db.session.commit()
-

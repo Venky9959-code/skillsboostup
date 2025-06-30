@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html>
+<head><title>Upload Course</title></head>
+<body>
+    <h2>Upload a New Course</h2>
+    <form method="post" enctype="multipart/form-data">
+        Title: <input type="text" name="title" required><br>
+        Description: <textarea name="description" required></textarea><br>
+        Price (₹): <input type="number" name="price" required><br>
+        PDF File: <input type="file" name="pdf" accept=".pdf" required><br>
+        Thumbnail Image (optional): <input type="file" name="thumbnail" accept="image/*"><br>
+        <button type="submit">Upload</button>
+    </form>
+</body>
+</html>

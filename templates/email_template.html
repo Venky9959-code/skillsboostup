@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>{{ _('Your Course Confirmation') }}</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f8f9fa;
+      color: #212529;
+      padding: 20px;
+    }
+    .container {
+      background: #ffffff;
+      border-radius: 8px;
+      padding: 20px;
+      max-width: 600px;
+      margin: auto;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    }
+    h2 {
+      color: #0d6efd;
+    }
+    a {
+      color: #0d6efd;
+      text-decoration: none;
+    }
+    .footer {
+      margin-top: 20px;
+      font-size: 0.9em;
+      color: #6c757d;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>{{ _('Hello') }}, {{ user.email }}!</h2>
+    <p>{{ _('Thank you for purchasing the course:') }} <strong>{{ course.title }}</strong></p>
+    <p>{{ _('You can download your course material using the link below:') }}</p>
+    <p>
+      <a href="https://{{ request.host }}/static/uploads/{{ course.pdf_filename }}" target="_blank">
+        {{ _('Download Course PDF') }}
+      </a>
+    </p>
+    <p>{{ _('We hope you enjoy your learning experience with Skills Boost.') }}</p>
+    <div class="footer">
+      {{ _('If you did not make this purchase, please contact our support team.') }}<br>
+      &copy; 2025 Skills Boost
+    </div>
+  </div>
+</body>
+</html>
