@@ -233,30 +233,24 @@ def payment_success():
     return '', 400
 
 
-@app.route('/download/<int:course_id>')
-def download_pdf(course_id):
-    if not session.get("paid"):
-        return redirect('/courses')
-    course = Course.query.get_or_404(course_id)
-    return send_from_directory(os.path.join(app.root_path, 'uploads'), course.pdf_filename, as_attachment=True)
-
-with app.app_context():
-    try:
-        db.session.execute('ALTER TABLE "user" ADD COLUMN is_paid BOOLEAN DEFAULT FALSE;')
-        print("✅ is_paid column added")
-    except Exception as e:
-        print("⚠️ is_paid column may already exist:", e)
-
-    try:
-        db.session.execute('ALTER TABLE course ADD COLUMN thumbnail TEXT;')
-        print("✅ thumbnail column added")
-    except Exception as e:
-        print("⚠️ thumbnail column may already exist:", e)
-
-    db.session.commit()
-
-
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
+
+# ADD THIS ONLY TEMPORARILY — DELETE AFTER SUCCESSFUL MIGRATION
+with app.app_context():
+    try:
+        db.session.execute('ALTER TABLE "user" ADD COLUMN is_paid BOOLEAN DEFAULT FALSE;')
+        print("✅ Column 'is_paid' added to user table")
+    except Exception as e:
+        print("⚠️ 'is_paid' column might already exist or failed:", e)
+
+    try:
+        db.session.execute('ALTER TABLE course ADD COLUMN thumbnail TEXT;')
+        print("✅ Column 'thumbnail' added to course table")
+    except Exception as e:
+        print("⚠️ 'thumbnail' column might already exist or failed:", e)
+
+    db.session.commit()
+
